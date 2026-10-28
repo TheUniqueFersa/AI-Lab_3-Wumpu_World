@@ -1,0 +1,11 @@
+{
+  "name": "wumpus-dpll-agent",
+  "version": "1.0.0",
+  "description": "Knowledge-based agent for the Wumpus World using DPLL (AI course, Lab 3)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/unit-tests.mjs",
+    "experiments": "node tests/run-experiments.mjs"
+  }
+}

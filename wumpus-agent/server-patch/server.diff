@@ -1,0 +1,21 @@
+126c126,143
+< 	log.Fatal(http.ListenAndServe(":8080", nil))
+---
+> 	log.Fatal(http.ListenAndServe(":8080", withCORS(http.DefaultServeMux)))
+> }
+> 
+> // withCORS lets web pages hosted on other domains (for example GitHub Pages)
+> // call this API from the browser. It does not change any game rule.
+> // Browsers first send an OPTIONS "preflight" request before a POST with a JSON
+> // body; it is answered here with 204 No Content.
+> func withCORS(next http.Handler) http.Handler {
+> 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+> 		w.Header().Set("Access-Control-Allow-Origin", "*")
+> 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+> 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+> 		if r.Method == http.MethodOptions {
+> 			w.WriteHeader(http.StatusNoContent)
+> 			return
+> 		}
+> 		next.ServeHTTP(w, r)
+> 	})

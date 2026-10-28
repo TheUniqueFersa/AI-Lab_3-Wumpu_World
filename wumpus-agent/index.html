@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wumpus DPLL Agent</title>
+  <meta name="description" content="A knowledge-based agent that explores the Wumpus World using DPLL. AI course, Lab 3.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Wumpus World</h1>
+      <p>A logical agent that decides each move with DPLL</p>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="play">Play</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="experiments">Experiments</button>
+      <button id="theme" class="theme" aria-label="Switch between dark and light theme">Light theme</button>
+    </nav>
+  </header>
+
+  <!-- ===================== PLAY ===================== -->
+  <main id="play" class="panel play" role="tabpanel">
+    <section class="stage">
+      <div class="board-wrap">
+        <div id="board" class="board" aria-label="Cave map, 4 by 4 squares"></div>
+        <div id="banner" class="banner" hidden></div>
+      </div>
+
+      <div class="sensors" aria-label="Current percept">
+        <span class="sensor" data-sensor="stench"><svg><use href="#g-stench"/></svg>Stench</span>
+        <span class="sensor" data-sensor="breeze"><svg><use href="#g-breeze"/></svg>Breeze</span>
+        <span class="sensor" data-sensor="glitter"><svg><use href="#g-glitter"/></svg>Glitter</span>
+        <span class="sensor" data-sensor="bump"><svg><use href="#g-bump"/></svg>Bump</span>
+        <span class="sensor" data-sensor="scream"><svg><use href="#g-scream"/></svg>Scream</span>
+      </div>
+
+      <dl class="status">
+        <div><dt>Score</dt><dd id="st-score">0</dd></div>
+        <div><dt>Actions</dt><dd id="st-actions">0</dd></div>
+        <div><dt>Last action</dt><dd id="st-last">None</dd></div>
+        <div><dt>Facing</dt><dd id="st-dir">East</dd></div>
+        <div><dt>Arrow</dt><dd id="st-arrow">Yes</dd></div>
+        <div><dt>Gold</dt><dd id="st-gold">No</dd></div>
+      </dl>
+
+      <details class="legend">
+        <summary>How to read the map</summary>
+        <ul>
+          <li><b class="tag tag-v">V</b> visited square</li>
+          <li><b class="tag tag-ok">OK</b> proven safe by DPLL, not visited yet</li>
+          <li><b class="tag tag-pq">P?</b> <b class="tag tag-wq">W?</b> a pit or the wumpus may be here</li>
+          <li><b class="tag tag-p">P!</b> <b class="tag tag-w">W!</b> proven pit, proven wumpus</li>
+          <li><b class="tag tag-risk">31%</b> probability of death computed by agent C</li>
+          <li><svg class="glyph"><use href="#g-breeze"/></svg> breeze, <svg class="glyph"><use href="#g-stench"/></svg> stench, <svg class="glyph"><use href="#g-glitter"/></svg> glitter felt in that square</li>
+        </ul>
+        <p>Labels follow the book notation (Russell and Norvig, Figure 7.3). Squares are numbered from [1,1] at the bottom left; the server calls that square (0,0).</p>
+      </details>
+    </section>
+
+    <aside class="side">
+      <section class="card controls">
+        <h2>Game</h2>
+        <label class="field">
+          <span>World</span>
+          <select id="backend"></select>
+        </label>
+        <p id="server-address" class="address muted"></p>
+        <label class="field" id="field-seed" hidden>
+          <span>World seed</span>
+          <input id="seed" type="number" min="1" value="1">
+        </label>
+        <label class="field">
+          <span>Agent</span>
+          <select id="agent">
+            <option value="A">A. Random (no reasoning)</option>
+            <option value="B">B. DPLL, safe squares only</option>
+            <option value="C" selected>C. DPLL with calculated risk</option>
+          </select>
+        </label>
+        <label class="field" id="field-threshold">
+          <span>Largest risk agent C accepts: <output id="threshold-out">35%</output></span>
+          <input id="threshold" type="range" min="0.05" max="0.6" step="0.05" value="0.35">
+        </label>
+        <label class="check">
+          <input id="code-rules" type="checkbox">
+          <span>Add rules taken from the server code (extra)</span>
+        </label>
+        <label class="check" id="field-reveal" hidden>
+          <input id="reveal" type="checkbox">
+          <span>Show the real map (simulator only)</span>
+        </label>
+
+        <div class="buttons">
+          <button id="btn-new" class="primary">New game</button>
+          <button id="btn-step">Step</button>
+          <button id="btn-play">Play</button>
+        </div>
+        <label class="field speed">
+          <span>Speed</span>
+          <input id="speed" type="range" min="50" max="1500" step="50" value="600" aria-label="Delay between actions">
+        </label>
+        <p id="message" class="message" role="status"></p>
+      </section>
+
+      <section class="card kb">
+        <h2>Knowledge base</h2>
+        <p id="kb-size" class="muted">Start a game to fill the knowledge base.</p>
+        <div id="kb-last" class="clauses"></div>
+        <details>
+          <summary>Show every clause</summary>
+          <div id="kb-all" class="clauses all"></div>
+        </details>
+      </section>
+
+      <section class="card trace">
+        <h2>Reasoning</h2>
+        <ol id="log" class="log" reversed></ol>
+      </section>
+    </aside>
+  </main>
+
+  <!-- ===================== EXPERIMENTS ===================== -->
+  <main id="experiments" class="panel experiments" role="tabpanel" hidden>
+    <section class="card exp-form">
+      <h2>Compare the agents</h2>
+      <p class="muted">Each round plays one game with every selected configuration, taking turns, so all of them face the same conditions. The main results of the report come from the class server, where every game is a new random world. The local simulator (extra) gives every configuration the same worlds.</p>
+      <div class="exp-grid">
+        <label class="field"><span>World</span>
+          <select id="exp-backend"></select>
+        </label>
+        <label class="field"><span>Rounds</span><input id="exp-games" type="number" min="1" max="5000" value="50"></label>
+        <label class="field"><span>Thresholds for C</span><input id="exp-thresholds" type="text" value="0.35" spellcheck="false"></label>
+        <label class="field"><span>Pause between actions (ms)</span><input id="exp-delay" type="number" min="0" value="0"></label>
+      </div>
+      <div class="exp-checks">
+        <label class="check"><input type="checkbox" class="exp-agent" value="A" checked><span>A</span></label>
+        <label class="check"><input type="checkbox" class="exp-agent" value="B" checked><span>B</span></label>
+        <label class="check"><input type="checkbox" class="exp-agent" value="C" checked><span>C</span></label>
+        <label class="check"><input type="checkbox" id="exp-code"><span>Also run B and C with the code rules (extra)</span></label>
+      </div>
+      <div class="buttons">
+        <button id="exp-run" class="primary">Run experiment</button>
+        <button id="exp-stop" disabled>Stop</button>
+        <button id="exp-csv" disabled>Download CSV</button>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="exp-bar"></div></div>
+      <p id="exp-status" class="message" role="status"></p>
+    </section>
+
+    <section class="card exp-results">
+      <h2>Results</h2>
+      <div id="exp-charts" class="charts"></div>
+      <div id="exp-tables"></div>
+    </section>
+  </main>
+
+  <!-- Shared drawings. Each one is used with <use href="#id">. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="g-breeze" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 13h16a3 3 0 1 1-3 3"/><path d="M3 18h7"/></g></symbol>
+    <symbol id="g-stench" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 20c-2-3 2-5 0-8s2-5 0-8"/><path d="M12 20c-2-3 2-5 0-8s2-5 0-8"/><path d="M18 20c-2-3 2-5 0-8s2-5 0-8"/></g></symbol>
+    <symbol id="g-glitter" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/></symbol>
+    <symbol id="g-bump" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 3v18"/><path d="M4 12h9"/><path d="M10 8l4 4-4 4"/></g></symbol>
+    <symbol id="g-scream" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6"/><path d="M9 6v12"/><path d="M14 3v18"/><path d="M19 8v8"/></g></symbol>
+    <symbol id="g-pit" viewBox="0 0 24 24"><ellipse cx="12" cy="13" rx="9" ry="6" fill="#0f1416"/><ellipse cx="12" cy="13" rx="9" ry="6" fill="none" stroke="currentColor" stroke-width="1.6"/><ellipse cx="12" cy="14.5" rx="5" ry="2.6" fill="#050708"/></symbol>
+    <symbol id="g-wumpus" viewBox="0 0 24 24"><path fill="currentColor" d="M5 10 3 4l5 3.5A8 8 0 0 1 12 6.5 8 8 0 0 1 16 7.5L21 4l-2 6a8 8 0 0 1 1 4c0 4-3.6 7-8 7s-8-3-8-7a8 8 0 0 1 1-4z"/><circle cx="9" cy="13" r="1.6" fill="#1b2125"/><circle cx="15" cy="13" r="1.6" fill="#1b2125"/><path d="M9 17.5h6" stroke="#1b2125" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="g-gold" viewBox="0 0 24 24"><path fill="currentColor" d="M4 16h16l-2-6H6z"/><path fill="currentColor" opacity=".7" d="M7 10h10l-1.5-4h-7z"/></symbol>
+    <symbol id="g-agent" viewBox="0 0 24 24"><path fill="currentColor" d="M21 12 6 4.5l3 7.5-3 7.5z"/></symbol>
+  </svg>
+
+  <script type="module" src="js/ui/app.js"></script>
+</body>
+</html>
